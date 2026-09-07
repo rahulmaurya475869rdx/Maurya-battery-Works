@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maurya Battery Works</title>
+<meta name="description" content="Maurya Battery Works — Batteries, Inverters, Coolers, Fans, Washing Machines and Winter Heaters. Your trusted shop in the city.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,700;1,900&family=Poppins:ital,wght@0,400;0,600;1,400;1,500;1,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <div class="shine-bar shine-bar-top"></div>
+
+  <header class="shop-banner">
+    <div class="banner-glow"></div>
+    <h1 id="shopNameHeading">Maurya Battery Works</h1>
+    <p class="tagline" id="shopTagline">Reliable power solutions for your home and shop — genuine products you can trust</p>
+  </header>
+
+  <main>
+
+    <section class="search-section">
+      <form id="searchForm" autocomplete="off">
+        <input type="text" id="searchInput" placeholder="Search products... (e.g. inverter, cooler)" aria-label="Product search">
+        <button type="submit" aria-label="Search">🔍</button>
+      </form>
+    </section>
+
+    <section class="hero-slider-section">
+      <div class="hero-slider" id="heroSlider">
+        <div class="slider-placeholder">Loading banner...</div>
+      </div>
+    </section>
+
+    <section class="category-section">
+      <div class="category-chips" id="categoryChips">
+        <button class="chip active" data-cat="all">All Items</button>
+      </div>
+    </section>
+
+    <section class="products-section">
+      <h2 class="section-title">Our Products</h2>
+      <div class="product-grid" id="productGrid">
+        <p class="empty-msg">Loading products...</p>
+      </div>
+    </section>
+
+    <section class="contact-section" id="contactSection">
+      <h2 class="section-title">Contact Us</h2>
+      <p id="contactAddress">Address coming soon</p>
+      <div class="contact-buttons">
+        <a id="callBtn" class="contact-btn" href="#">📞 Call Us</a>
+        <a id="whatsappBtn" class="contact-btn whatsapp" href="#" target="_blank" rel="noopener">💬 WhatsApp</a>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Product detail modal -->
+  <div class="modal-overlay hidden" id="productModal">
+    <div class="modal-box">
+      <button class="modal-close" id="modalClose">✕</button>
+      <div class="modal-media">
+        <img id="modalMainImage" src="" alt="Product image">
+        <div class="modal-thumbs" id="modalThumbs"></div>
+        <div class="modal-video-wrap hidden" id="modalVideoWrap">
+          <video id="modalVideo" controls playsinline></video>
+        </div>
+      </div>
+      <div class="modal-info">
+        <h3 id="modalProductName"></h3>
+        <p class="price" id="modalProductPrice"></p>
+        <p id="modalProductDesc"></p>
+        <a id="modalWhatsapp" class="contact-btn whatsapp" href="#" target="_blank" rel="noopener">💬 Order via WhatsApp</a>
+      </div>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <p>© <span id="footerYear"></span> Maurya Battery Works. All rights reserved.</p>
+  </footer>
+
+  <div class="shine-bar shine-bar-bottom"></div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="js/firebase-config.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

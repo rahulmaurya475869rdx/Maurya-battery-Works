@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MBW Admin Panel</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,700;1,900&family=Poppins:ital,wght@0,400;0,600;1,400;1,500;1,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body class="admin-body">
+
+  <div class="shine-bar shine-bar-top"></div>
+
+  <!-- ================= LOGIN SCREEN ================= -->
+  <section id="loginSection" class="admin-login-wrap">
+    <div class="admin-blob blob1"></div>
+    <div class="admin-blob blob2"></div>
+    <div class="login-card">
+      <h1 class="login-title">MBW <span>Admin</span></h1>
+      <p class="login-sub">Authorized access only. Every attempt is recorded.</p>
+      <form id="loginForm">
+        <label for="adminId">Admin ID</label>
+        <input type="text" id="adminId" placeholder="Enter your admin email" required autocomplete="username">
+        <label for="adminPass">Secret Password</label>
+        <input type="password" id="adminPass" placeholder="••••••••" required autocomplete="current-password">
+        <button type="submit">Login</button>
+        <p class="login-error" id="loginError"></p>
+      </form>
+    </div>
+  </section>
+
+  <!-- ================= ENTRY VIDEO (plays once per login, admin-only) ================= -->
+  <div class="entry-video-overlay hidden" id="entryVideoOverlay">
+    <video id="entryVideoPlayer" playsinline></video>
+    <button id="entryVideoSkip" class="skip-btn" type="button">Skip</button>
+  </div>
+
+  <!-- ================= DASHBOARD ================= -->
+  <section id="dashboardSection" class="dashboard hidden">
+    <aside class="dashboard-sidebar">
+      <h2 class="dash-logo">MBW <span>Admin</span></h2>
+      <nav>
+        <button class="tab-btn active" data-tab="products">Products</button>
+        <button class="tab-btn" data-tab="categories">Categories</button>
+        <button class="tab-btn" data-tab="banner">Banner Slider</button>
+        <button class="tab-btn" data-tab="entryvideo">Entry Video</button>
+        <button class="tab-btn" data-tab="blocked">Blocked Logins</button>
+        <button class="tab-btn" data-tab="security">Security Sound</button>
+        <button class="tab-btn" data-tab="settings">Shop Settings</button>
+      </nav>
+      <button id="logoutBtn" class="logout-btn">Logout</button>
+    </aside>
+
+    <main class="dashboard-content">
+
+      <!-- Products Tab -->
+      <div class="tab-panel active" id="tab-products">
+        <h2 class="section-title">Add Product</h2>
+        <form id="productForm" class="admin-form">
+          <input type="hidden" id="productEditId">
+          <label>Product Name</label>
+          <input type="text" id="productName" required>
+
+          <label>Category</label>
+          <select id="productCategory" required></select>
+
+          <label>Price (₹) — optional</label>
+          <input type="number" id="productPrice" min="0">
+
+          <label>Description</label>
+          <textarea id="productDesc" rows="3"></textarea>
+
+          <label>Images (you can select multiple)</label>
+          <div class="edit-thumbs" id="productImagePreview"></div>
+          <input type="file" id="productImages" accept="image/*" multiple>
+
+          <label>Video (optional — uploading a new one replaces the old)</label>
+          <p id="productExistingVideoNote" class="hint-text hidden">A video is already attached.</p>
+          <input type="file" id="productVideo" accept="video/*">
+
+          <label class="stock-check"><input type="checkbox" id="productInStock" checked> In stock</label>
+
+          <p id="productUploadStatus" class="upload-status"></p>
+          <div class="form-btn-row">
+            <button type="submit" id="productSubmitBtn">Save Product</button>
+            <button type="button" id="productCancelEdit" class="secondary-btn hidden">Cancel Edit</button>
+          </div>
+        </form>
+
+        <h2 class="section-title">All Products</h2>
+        <div class="admin-list" id="productsList"></div>
+      </div>
+
+      <!-- Categories Tab -->
+      <div class="tab-panel" id="tab-categories">
+        <h2 class="section-title">Add Category</h2>
+        <form id="categoryForm" class="admin-form">
+          <input type="hidden" id="categoryEditId">
+          <label>Category Name</label>
+          <input type="text" id="categoryName" required>
+          <button type="submit">Save Category</button>
+        </form>
+        <h2 class="section-title">All Categories</h2>
+        <div class="admin-list" id="categoriesList"></div>
+      </div>
+
+      <!-- Banner Slider Tab -->
+      <div class="tab-panel" id="tab-banner">
+        <h2 class="section-title">Homepage Banner Slider</h2>
+        <p class="hint-text">Images you add here appear as a smooth slideshow on the homepage.</p>
+        <form id="bannerForm" class="admin-form">
+          <label>New Banner Image</label>
+          <input type="file" id="bannerImageInput" accept="image/*">
+          <p id="bannerUploadStatus" class="upload-status"></p>
+          <button type="submit">Add Banner</button>
+        </form>
+        <div class="admin-list" id="bannerList"></div>
+      </div>
+
+      <!-- Entry Video Tab -->
+      <div class="tab-panel" id="tab-entryvideo">
+        <h2 class="section-title">Admin Entry Video</h2>
+        <p class="hint-text">Plays once, right after you log in, before the dashboard opens. Only admins ever see it — customers never load this file. Keep it small (around 2MB) so it starts instantly.</p>
+        <form id="entryVideoForm" class="admin-form">
+          <label>New Entry Video</label>
+          <input type="file" id="entryVideoInput" accept="video/*">
+          <p id="entryVideoUploadStatus" class="upload-status"></p>
+          <div class="form-btn-row">
+            <button type="submit">Save Video</button>
+            <button type="button" id="entryVideoRemoveBtn" class="secondary-btn">Remove Video</button>
+          </div>
+        </form>
+        <p id="currentEntryVideoLabel" class="hint-text"></p>
+      </div>
+
+      <!-- Blocked Logins Tab -->
+      <div class="tab-panel" id="tab-blocked">
+        <h2 class="section-title">Blocked Login Attempts</h2>
+        <p class="hint-text">Anyone who enters the wrong ID/password twice gets blocked and listed here.</p>
+        <div class="admin-list" id="blockedList"></div>
+      </div>
+
+      <!-- Security Sound Tab -->
+      <div class="tab-panel" id="tab-security">
+        <h2 class="section-title">Security Alert Sound</h2>
+        <p class="hint-text">This sound plays when a blocked ID tries to log in. Upload your own sound or use the default siren.</p>
+        <form id="sirenForm" class="admin-form">
+          <label>New Siren/Alert Sound (mp3)</label>
+          <input type="file" id="sirenInput" accept="audio/*">
+          <p id="sirenUploadStatus" class="upload-status"></p>
+          <div class="form-btn-row">
+            <button type="submit">Save Sound</button>
+            <button type="button" id="sirenTestBtn" class="secondary-btn">Test</button>
+            <button type="button" id="sirenResetBtn" class="secondary-btn">Reset to Default</button>
+          </div>
+        </form>
+        <p id="currentSirenLabel" class="hint-text"></p>
+      </div>
+
+      <!-- Shop Settings Tab -->
+      <div class="tab-panel" id="tab-settings">
+        <h2 class="section-title">Shop Details</h2>
+        <form id="settingsForm" class="admin-form">
+          <label>Shop Name</label>
+          <input type="text" id="settingShopName">
+          <label>Tagline</label>
+          <input type="text" id="settingTagline">
+          <label>Address</label>
+          <textarea id="settingAddress" rows="2"></textarea>
+          <label>Call Number (with country code)</label>
+          <input type="text" id="settingPhone" placeholder="+91XXXXXXXXXX">
+          <label>WhatsApp Number (with country code)</label>
+          <input type="text" id="settingWhatsapp" placeholder="+91XXXXXXXXXX">
+          <button type="submit">Save Settings</button>
+          <p id="settingsStatus" class="upload-status"></p>
+        </form>
+      </div>
+
+    </main>
+  </section>
+
+  <!-- ================= SECURITY ALERT OVERLAY ================= -->
+  <div class="security-alert hidden" id="securityAlert">
+    <div class="skull">💀</div>
+    <h2 class="alert-title">⚠ SECURITY ALERT ⚠</h2>
+    <p class="alert-sub">UNAUTHORIZED ACCESS BLOCKED</p>
+    <p class="alert-sub2">This login ID has been permanently blocked.</p>
+  </div>
+
+  <footer class="dev-credit">This website is designed and developed by Rahul Maurya.</footer>
+
+  <div class="shine-bar shine-bar-bottom"></div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="js/firebase-config.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>
