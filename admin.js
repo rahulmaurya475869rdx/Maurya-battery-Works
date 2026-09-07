@@ -66,6 +66,7 @@ async function playSiren() {
 
 function showSecurityAlert() {
   loginForm.reset();
+  loginSection.classList.add("hidden");
   securityAlertEl.classList.remove("hidden");
   playSiren();
 }
