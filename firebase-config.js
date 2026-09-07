@@ -4,17 +4,17 @@
    ========================================================= */
 
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyC9H4aW1NcReM-5rcswkV2H5usWTNxV8sU",
+  authDomain: "maurya-battery-works.firebaseapp.com",
+  projectId: "maurya-battery-works",
+  storageBucket: "maurya-battery-works.firebasestorage.app",
+  messagingSenderId: "992788120390",
+  appId: "1:992788120390:web:9c5a2c94f51d77846e9922"
 };
 
 // Cloudinary (images/videos are stored here — no Firebase Storage cost)
-const CLOUDINARY_CLOUD_NAME = "YOUR_CLOUD_NAME";
-const CLOUDINARY_UPLOAD_PRESET = "YOUR_UNSIGNED_UPLOAD_PRESET";
+const CLOUDINARY_CLOUD_NAME = "m1lkmgfe";
+const CLOUDINARY_UPLOAD_PRESET = "Mbw store";
 
 // Emergency backup login (see README "Emergency Backup Login").
 // Create a SECOND user with this exact email in Firebase Authentication,
