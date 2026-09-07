@@ -3,6 +3,7 @@
    ========================================================= */
 
 const auth = firebase.auth();
+auth.setPersistence(firebase.auth.Auth.Persistence.NONE).catch(() => {});
 const PIN_REGEX = /^\d{10}$/;
 
 /* ---------------------------------------------------------
