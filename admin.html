@@ -49,6 +49,7 @@
         <button class="tab-btn" data-tab="blocked">Blocked Logins</button>
         <button class="tab-btn" data-tab="security">Security Sound</button>
         <button class="tab-btn" data-tab="settings">Shop Settings</button>
+        <button class="tab-btn" data-tab="social">Social Links</button>
       </nav>
       <button id="logoutBtn" class="logout-btn">Logout</button>
     </aside>
@@ -165,7 +166,7 @@
         <form id="settingsForm" class="admin-form">
           <label>Shop Name</label>
           <input type="text" id="settingShopName">
-          <label>Tagline</label>
+          <label>Tagline (shown under the shop name banner)</label>
           <input type="text" id="settingTagline">
           <label>Address</label>
           <textarea id="settingAddress" rows="2"></textarea>
@@ -173,9 +174,45 @@
           <input type="text" id="settingPhone" placeholder="+91XXXXXXXXXX">
           <label>WhatsApp Number (with country code)</label>
           <input type="text" id="settingWhatsapp" placeholder="+91XXXXXXXXXX">
+
+          <label>Hero Eyebrow (small label above the headline)</label>
+          <input type="text" id="settingHeroEyebrow" placeholder="e.g. Trusted since day one">
+          <label>Hero Headline</label>
+          <input type="text" id="settingHeroHeadline" placeholder="e.g. Power you can count on, every day.">
+          <label>Hero Description</label>
+          <textarea id="settingHeroDescription" rows="2" placeholder="A short line about your shop shown below the banner"></textarea>
+          <label>Footer Tagline</label>
+          <input type="text" id="settingFooterTagline" placeholder="e.g. Trusted power, close to home.">
+
           <button type="submit">Save Settings</button>
           <p id="settingsStatus" class="upload-status"></p>
         </form>
+      </div>
+
+      <!-- Social Links Tab -->
+      <div class="tab-panel" id="tab-social">
+        <h2 class="section-title">Social & Contact Links</h2>
+        <p class="hint-text">These show as icon buttons in the footer. Only what you add here appears — leave a platform out until you're ready to add it.</p>
+        <form id="socialLinkForm" class="admin-form">
+          <input type="hidden" id="socialLinkEditId">
+          <label>Platform</label>
+          <select id="socialLinkPlatform">
+            <option value="youtube">YouTube</option>
+            <option value="instagram">Instagram</option>
+            <option value="facebook">Facebook</option>
+            <option value="whatsapp">WhatsApp</option>
+            <option value="maps">Google Maps</option>
+            <option value="twitter">Twitter / X</option>
+            <option value="website">Other / Website</option>
+          </select>
+          <label>Label (optional, for your own reference)</label>
+          <input type="text" id="socialLinkLabel" placeholder="e.g. Our Instagram page">
+          <label>Link URL</label>
+          <input type="text" id="socialLinkUrl" placeholder="https://...">
+          <button type="submit">Save Link</button>
+        </form>
+        <h2 class="section-title">All Links</h2>
+        <div class="admin-list" id="socialLinksList"></div>
       </div>
 
     </main>

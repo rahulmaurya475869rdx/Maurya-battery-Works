@@ -222,6 +222,7 @@ function initDashboard() {
   initBlockedList();
   initSecuritySound();
   initSettings();
+  initSocialLinks();
 }
 
 /* ---- Categories ---- */
@@ -547,6 +548,10 @@ function initSettings() {
     document.getElementById("settingAddress").value = d.address || "";
     document.getElementById("settingPhone").value = d.phone || "";
     document.getElementById("settingWhatsapp").value = d.whatsapp || "";
+    document.getElementById("settingHeroEyebrow").value = d.heroEyebrow || "";
+    document.getElementById("settingHeroHeadline").value = d.heroHeadline || "";
+    document.getElementById("settingHeroDescription").value = d.heroDescription || "";
+    document.getElementById("settingFooterTagline").value = d.footerTagline || "";
   });
 
   document.getElementById("settingsForm").addEventListener("submit", async (e) => {
@@ -557,12 +562,69 @@ function initSettings() {
       tagline: document.getElementById("settingTagline").value.trim(),
       address: document.getElementById("settingAddress").value.trim(),
       phone: document.getElementById("settingPhone").value.trim(),
-      whatsapp: document.getElementById("settingWhatsapp").value.trim()
+      whatsapp: document.getElementById("settingWhatsapp").value.trim(),
+      heroEyebrow: document.getElementById("settingHeroEyebrow").value.trim(),
+      heroHeadline: document.getElementById("settingHeroHeadline").value.trim(),
+      heroDescription: document.getElementById("settingHeroDescription").value.trim(),
+      footerTagline: document.getElementById("settingFooterTagline").value.trim()
     };
     await db.collection("settings").doc("general").set(data, { merge: true });
     statusEl.textContent = "Saved!";
     setTimeout(() => { statusEl.textContent = ""; }, 2000);
   });
+}
+
+/* ---- Social links (footer icons) ---- */
+let allSocialLinksAdmin = [];
+
+function initSocialLinks() {
+  db.collection("social_links").orderBy("order", "asc").onSnapshot((snap) => {
+    allSocialLinksAdmin = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    renderSocialLinksList();
+  });
+
+  document.getElementById("socialLinkForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const editId = document.getElementById("socialLinkEditId").value;
+    const platform = document.getElementById("socialLinkPlatform").value;
+    const label = document.getElementById("socialLinkLabel").value.trim();
+    const url = document.getElementById("socialLinkUrl").value.trim();
+    if (!url) return;
+    if (editId) {
+      await db.collection("social_links").doc(editId).update({ platform, label, url });
+    } else {
+      await db.collection("social_links").add({ platform, label, url, order: Date.now() });
+    }
+    document.getElementById("socialLinkForm").reset();
+    document.getElementById("socialLinkEditId").value = "";
+  });
+}
+
+function renderSocialLinksList() {
+  const wrap = document.getElementById("socialLinksList");
+  if (!allSocialLinksAdmin.length) { wrap.innerHTML = '<p class="empty-msg">No social links yet.</p>'; return; }
+  wrap.innerHTML = allSocialLinksAdmin.map((l) => `
+    <div class="admin-item">
+      <div class="item-main">
+        <strong>${escapeHtmlA(l.label || l.platform)}</strong>
+        <small>${escapeHtmlA(l.platform)} · ${escapeHtmlA(l.url)}</small>
+      </div>
+      <div class="item-actions">
+        <button data-edit="${l.id}">Edit</button>
+        <button class="danger" data-del="${l.id}">Delete</button>
+      </div>
+    </div>`).join("");
+
+  wrap.querySelectorAll("[data-edit]").forEach((b) => b.addEventListener("click", () => {
+    const l = allSocialLinksAdmin.find((x) => x.id === b.dataset.edit);
+    document.getElementById("socialLinkEditId").value = l.id;
+    document.getElementById("socialLinkPlatform").value = l.platform;
+    document.getElementById("socialLinkLabel").value = l.label || "";
+    document.getElementById("socialLinkUrl").value = l.url;
+  }));
+  wrap.querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", async () => {
+    if (confirm("Delete this social link?")) await db.collection("social_links").doc(b.dataset.del).delete();
+  }));
 }
 
 /* ---- helpers ---- */
