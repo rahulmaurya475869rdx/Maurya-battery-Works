@@ -19,11 +19,16 @@ const loginError = document.getElementById("loginError");
 const securityAlertEl = document.getElementById("securityAlert");
 
 let sirenAudioEl = null;
+let sirenBufferSource = null;
 let generatedSirenHandle = null;
 let vibrateInterval = null;
 
 function stopSiren() {
   if (sirenAudioEl) { sirenAudioEl.pause(); sirenAudioEl = null; }
+  if (sirenBufferSource) {
+    try { sirenBufferSource.stop(); } catch (e) {}
+    sirenBufferSource = null;
+  }
   if (generatedSirenHandle) {
     clearInterval(generatedSirenHandle.interval);
     try { generatedSirenHandle.osc.stop(); } catch (e) {}
@@ -49,15 +54,35 @@ function playGeneratedSiren() {
   } catch (e) { /* audio blocked by the browser — the visual alert still shows */ }
 }
 
+// Plays the admin's uploaded siren file through the Web Audio API instead of
+// an <audio> element — this is what keeps Android/Chrome from surfacing that
+// "Live notification" media card with a title, progress bar, and play/pause.
+async function playCustomSirenViaWebAudio(url) {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const res = await fetch(url);
+  const arrayBuffer = await res.arrayBuffer();
+  const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+  const source = ctx.createBufferSource();
+  source.buffer = audioBuffer;
+  source.loop = true;
+  const gain = ctx.createGain();
+  gain.gain.value = 0.7;
+  source.connect(gain).connect(ctx.destination);
+  source.start();
+  sirenBufferSource = source;
+}
+
 async function playSiren() {
   stopSiren();
   try {
     const doc = await db.collection("settings").doc("security").get();
     const url = doc.exists ? doc.data().sirenUrl : "";
     if (url) {
-      sirenAudioEl = new Audio(url);
-      sirenAudioEl.loop = true;
-      sirenAudioEl.play().catch(() => playGeneratedSiren());
+      try {
+        await playCustomSirenViaWebAudio(url);
+      } catch (e) {
+        playGeneratedSiren(); // couldn't fetch/decode the file — fall back so sound still plays
+      }
     } else {
       playGeneratedSiren();
     }
@@ -68,9 +93,9 @@ async function playSiren() {
 
 function startVibration() {
   if (!navigator.vibrate) return; // not supported (e.g. iPhone Safari) — sound + flash still work
-  const pattern = [400, 150, 400, 150, 400, 150, 400];
+  const pattern = [300, 300, 300, 300, 300, 300]; // clear on-off-on-off pulses, not one long buzz
   navigator.vibrate(pattern);
-  vibrateInterval = setInterval(() => navigator.vibrate(pattern), 2600);
+  vibrateInterval = setInterval(() => navigator.vibrate(pattern), 3200);
 }
 
 function showSecurityAlert() {
@@ -78,7 +103,7 @@ function showSecurityAlert() {
   loginSection.classList.add("hidden");
   securityAlertEl.classList.remove("hidden");
   if ("mediaSession" in navigator) {
-    navigator.mediaSession.metadata = null; // no rich "Now Playing" notification to begin with, but harmless to clear
+    navigator.mediaSession.metadata = null;
   }
   playSiren();
   startVibration();
