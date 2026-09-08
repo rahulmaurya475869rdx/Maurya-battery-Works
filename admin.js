@@ -220,7 +220,10 @@ auth.onAuthStateChanged((user) => {
   }
 });
 
-document.getElementById("logoutBtn").addEventListener("click", () => auth.signOut());
+document.getElementById("logoutBtn").addEventListener("click", async () => {
+  await auth.signOut().catch(() => {});
+  window.location.reload();
+});
 
 /* Tab switching */
 document.querySelectorAll(".tab-btn").forEach((btn) => {
