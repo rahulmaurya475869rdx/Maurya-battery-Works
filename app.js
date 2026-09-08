@@ -215,11 +215,21 @@ document.getElementById("searchForm").addEventListener("submit", (e) => {
   e.preventDefault();
   const val = document.getElementById("searchInput").value.trim();
   if (val.toUpperCase() === "MBW LOGIN") {
+    document.getElementById("searchInput").value = "";
     window.location.href = "admin.html";
     return;
   }
   searchTerm = val;
   renderProducts();
+});
+
+// Safety net: whenever this page is restored via the back/forward button
+// (not freshly loaded), make sure the search box never shows old text.
+window.addEventListener("pageshow", (event) => {
+  if (event.persisted) {
+    const si = document.getElementById("searchInput");
+    if (si) si.value = "";
+  }
 });
 
 /* ---------------- helpers ---------------- */
