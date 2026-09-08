@@ -404,5 +404,5 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   outline:2px solid var(--gold); outline-offset:2px;
 }
 @media (prefers-reduced-motion:reduce){
-  .shine-bar, .shop-banner, .banner-glow, .security-alert, .security-alert .skull{ animation:none !important; }
+  .shine-bar, .shop-banner, .banner-glow{ animation:none !important; }
 }

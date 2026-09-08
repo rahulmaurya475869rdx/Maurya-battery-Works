@@ -20,6 +20,7 @@ const securityAlertEl = document.getElementById("securityAlert");
 
 let sirenAudioEl = null;
 let generatedSirenHandle = null;
+let vibrateInterval = null;
 
 function stopSiren() {
   if (sirenAudioEl) { sirenAudioEl.pause(); sirenAudioEl = null; }
@@ -65,11 +66,22 @@ async function playSiren() {
   }
 }
 
+function startVibration() {
+  if (!navigator.vibrate) return; // not supported (e.g. iPhone Safari) — sound + flash still work
+  const pattern = [400, 150, 400, 150, 400, 150, 400];
+  navigator.vibrate(pattern);
+  vibrateInterval = setInterval(() => navigator.vibrate(pattern), 2600);
+}
+
 function showSecurityAlert() {
   loginForm.reset();
   loginSection.classList.add("hidden");
   securityAlertEl.classList.remove("hidden");
+  if ("mediaSession" in navigator) {
+    navigator.mediaSession.metadata = null; // no rich "Now Playing" notification to begin with, but harmless to clear
+  }
   playSiren();
+  startVibration();
 }
 
 loginForm.addEventListener("submit", async (e) => {
