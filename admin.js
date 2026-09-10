@@ -12,9 +12,9 @@ const PIN_REGEX = /^\d{10}$/;
    "Get alerts on your phone" step in the README. Until you do,
    this quietly does nothing — the rest of the site is unaffected.
    --------------------------------------------------------- */
-const EMAILJS_PUBLIC_KEY  = "PASTE_YOUR_EMAILJS_PUBLIC_KEY";
-const EMAILJS_SERVICE_ID  = "PASTE_YOUR_EMAILJS_SERVICE_ID";
-const EMAILJS_TEMPLATE_ID = "PASTE_YOUR_EMAILJS_TEMPLATE_ID";
+const EMAILJS_PUBLIC_KEY  = "ppceEkmhVZ6mRkRBh";
+const EMAILJS_SERVICE_ID  = "service_g3gibrj";
+const EMAILJS_TEMPLATE_ID = "template_r44alfd";
 const OWNER_ALERT_EMAIL   = "rahulmaurya151015@gmail.com";
 
 const emailAlertsReady = () =>
