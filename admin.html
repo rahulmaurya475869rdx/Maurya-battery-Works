@@ -20,14 +20,14 @@
     <div class="login-card">
       <h1 class="login-title">MBW <span>Admin</span></h1>
       <p class="login-sub">Authorized access only. Every attempt is recorded.</p>
-      <form id="loginForm">
+      <div id="loginForm">
         <label for="adminId">Admin ID</label>
-        <input type="text" id="adminId" placeholder="Enter your admin email" required autocomplete="username">
+        <input type="text" id="adminId" placeholder="Enter your admin email" required autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
         <label for="adminPass">Secret Password</label>
-        <input type="password" id="adminPass" placeholder="••••••••" required autocomplete="off">
-        <button type="submit">Login</button>
+        <input type="password" id="adminPass" placeholder="••••••••" required autocomplete="new-password">
+        <button type="button" id="loginSubmitBtn">Login</button>
         <p class="login-error" id="loginError"></p>
-      </form>
+      </div>
     </div>
   </section>
 
@@ -140,6 +140,10 @@
       <div class="tab-panel" id="tab-blocked">
         <h2 class="section-title">Blocked Login Attempts</h2>
         <p class="hint-text">Anyone who enters the wrong ID/password twice gets blocked and listed here.</p>
+        <div class="alert-opt-in">
+          <button type="button" id="enablePhoneAlerts" class="secondary-btn">🔔 Enable Live Alerts on This Device</button>
+          <p class="hint-text" id="phoneAlertsStatus">While this tab is open on a device, that device will flash red, play the siren, and show a notification the moment a new ID gets blocked.</p>
+        </div>
         <div class="admin-list" id="blockedList"></div>
       </div>
 
@@ -218,12 +222,21 @@
     </main>
   </section>
 
-  <!-- ================= SECURITY ALERT OVERLAY ================= -->
+  <!-- ================= SECURITY ALERT OVERLAY (shown to a blocked visitor) ================= -->
   <div class="security-alert hidden" id="securityAlert">
     <div class="skull">💀</div>
     <h2 class="alert-title">⚠ SECURITY ALERT ⚠</h2>
     <p class="alert-sub">UNAUTHORIZED ACCESS BLOCKED</p>
     <p class="alert-sub2">This login ID has been permanently blocked.</p>
+  </div>
+
+  <!-- ================= OWNER ALERT OVERLAY (shown only on your own device, only if this tab is open) ================= -->
+  <div class="security-alert owner-alert hidden" id="ownerAlertOverlay">
+    <div class="skull">🚨</div>
+    <h2 class="alert-title">NEW LOGIN ATTEMPT BLOCKED</h2>
+    <p class="alert-sub" id="ownerAlertId"></p>
+    <p class="alert-sub2" id="ownerAlertTime"></p>
+    <button type="button" id="ownerAlertDismiss" class="alert-dismiss-btn">Dismiss</button>
   </div>
 
   <footer class="dev-credit">This website is designed and developed by Rahul Maurya.</footer>
@@ -234,6 +247,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
   <script src="firebase-config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
   <script src="admin.js"></script>
 </body>
 </html>

@@ -390,6 +390,18 @@ button, input, select, textarea{ font-family:var(--font-body); font-style:italic
 }
 .security-alert .alert-sub{ color:#ffdede; font-weight:600; letter-spacing:.5px; margin:0; font-size:1.1rem; }
 .security-alert .alert-sub2{ color:#ffbdbd; margin:6px 0 0; font-size:.9rem; }
+.security-alert.owner-alert{ z-index:1200; } /* always on top, even over the visitor-facing alert */
+.alert-dismiss-btn{
+  margin-top:24px; padding:12px 26px; border-radius:8px; cursor:pointer; font-weight:600;
+  background:var(--white); color:#6a0000; border:none;
+}
+
+/* Blocked Logins tab — live alert opt-in box */
+.alert-opt-in{
+  background:var(--charcoal); border:1px solid #2c2b2e; border-radius:12px;
+  padding:16px; max-width:520px; margin-bottom:20px;
+}
+.alert-opt-in .hint-text{ margin:10px 0 0; }
 
 /* ---------- responsive ---------- */
 @media (max-width:820px){

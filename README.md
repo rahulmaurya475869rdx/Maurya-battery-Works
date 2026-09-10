@@ -194,6 +194,96 @@ browser (no paid backend server, exactly as you wanted to keep it free), a
 genuinely expert developer could study the code and work around it. For
 the vast majority of people who might try, it'll do exactly what you want.
 
+### The "Save password?" popup is gone
+
+The login screen no longer uses a real HTML `<form>` — it's just two
+boxes and a button wired up with JavaScript. That's what actually stops
+Chrome's save-password prompt, on a blocked attempt or a real one:
+Chrome deliberately ignores `autocomplete="off"` on password fields (it
+did before too, even though it was already set), and the only thing
+that reliably stops the prompt is not having a form-submit event at all.
+
+One side effect worth knowing: Chrome also won't offer to save *your*
+real admin password on a successful login anymore, since it's the same
+screen either way. If you want Chrome to remember it for you, add it
+once by hand: `chrome://password-manager` → **Add password**.
+
+### Louder Security Sound
+
+Both the siren you upload and the default generated one now play at
+double the volume in code, with a limiter added so the boost stays a
+clean loud siren instead of turning into crackly distortion. Two things
+this can't do, on purpose: make a muted phone audible, or exceed what
+the phone's speaker can physically produce. No website is allowed to
+reach into another device's volume or mute settings — that's an
+operating-system protection, not something code can work around.
+
+---
+
+## Get alerts on your own phone
+
+When an ID gets blocked (or a blocked ID tries again), you can now hear
+about it two ways:
+
+### 1. Email to your Gmail
+
+This reaches you even when you're not looking at the admin panel. A
+plain website can't send email by itself, so this uses a free service
+called **EmailJS** as the go-between:
+
+1. Go to **https://www.emailjs.com** and sign up — free.
+2. **Email Services → Add New Service → Gmail** → connect
+   `rahulmaurya151015@gmail.com` (or whichever Gmail you want the alerts
+   to land in).
+3. **Email Templates → Create New Template.** Set the "To email" field
+   to `{{to_email}}`, and use `{{blocked_id}}`, `{{attempts}}`, and
+   `{{time}}` in the subject/body, e.g.:
+   - Subject: `🚨 MBW Admin — Blocked login attempt`
+   - Body: `ID entered: {{blocked_id}}` / `Attempts: {{attempts}}` /
+     `Time: {{time}}`
+4. **Account → General** → copy your **Public Key**.
+5. Open `js/admin.js`, find the block right near the top that says
+   `PASTE_YOUR_EMAILJS_...`, and fill in:
+   - `EMAILJS_PUBLIC_KEY` → your Public Key (step 4)
+   - `EMAILJS_SERVICE_ID` → your Service ID (step 2)
+   - `EMAILJS_TEMPLATE_ID` → your Template ID (step 3)
+6. Save, re-upload `admin.js` to GitHub, let Netlify redeploy. Done.
+
+The free EmailJS plan allows 200 emails a month, which is plenty — and
+the code already limits itself to one email every 30 seconds so a bot
+retrying the login form over and over can't burn through your quota or
+flood your inbox.
+
+### 2. Live alert on a device you keep open
+
+Open the **Blocked Logins** tab and tap **"Enable Live Alerts on This
+Device."** From then on, whichever device has that tab open (an old
+phone, a laptop, doesn't matter) will flash red, play your actual siren
+sound, and show a notification the instant a new ID gets blocked.
+
+**Worth knowing honestly:** neither of these can take over a locked
+phone screen the way an incoming call or an alarm clock does. That kind
+of takeover is an operating-system feature reserved for apps with
+special permissions — dialers, alarm clocks, emergency-alert apps — and
+no website, email, or free service can copy it, including this one. The
+email shows up as a normal Gmail notification (visible even on a locked
+screen, if your phone's notification settings allow it, but with
+Gmail's own sound); the live alert is louder and uses your real siren,
+but only while that tab is open somewhere. Using both covers you either
+way, and is the strongest version of this that's honestly achievable
+without turning this into a paid, native phone app.
+
+### Why the attempted password is never sent to you
+
+Only the ID/email someone typed is captured and emailed — never the
+password, not even the wrong one. People (and sometimes their browser's
+own autofill) sometimes type a real password meant for some other
+account into random login boxes without meaning to. Holding onto that
+— even with good intentions — means holding a stranger's actual
+password, which is a real liability for you and unfair to them. Knowing
+*who* tried is enough to see the pattern and act on it; the password
+itself was never needed for that.
+
 ---
 
 ## Admin Entry Video

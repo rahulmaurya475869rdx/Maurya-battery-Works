@@ -7,6 +7,42 @@ auth.setPersistence(firebase.auth.Auth.Persistence.NONE).catch(() => {});
 const PIN_REGEX = /^\d{10}$/;
 
 /* ---------------------------------------------------------
+   SECTION 0 — Email alert to the owner on a blocked login
+   Fill in the three PASTE_ values below after finishing the
+   "Get alerts on your phone" step in the README. Until you do,
+   this quietly does nothing — the rest of the site is unaffected.
+   --------------------------------------------------------- */
+const EMAILJS_PUBLIC_KEY  = "PASTE_YOUR_EMAILJS_PUBLIC_KEY";
+const EMAILJS_SERVICE_ID  = "PASTE_YOUR_EMAILJS_SERVICE_ID";
+const EMAILJS_TEMPLATE_ID = "PASTE_YOUR_EMAILJS_TEMPLATE_ID";
+const OWNER_ALERT_EMAIL   = "rahulmaurya151015@gmail.com";
+
+const emailAlertsReady = () =>
+  window.emailjs && !EMAILJS_PUBLIC_KEY.startsWith("PASTE_");
+
+if (emailAlertsReady()) {
+  // limitRate caps this to one send every 30s so a bot hammering the
+  // login form can't flood your inbox — see README for why.
+  emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY, limitRate: { throttle: 30000 } });
+}
+
+// Emails the owner when an ID gets blocked or a blocked ID tries again.
+// Deliberately sends only the ID that was typed, the attempt count, and
+// the time — never the password. See the README for why the password
+// itself is never captured, stored, or emailed.
+async function sendOwnerEmailAlert(typedId, attempts) {
+  if (!emailAlertsReady()) return;
+  try {
+    await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+      to_email: OWNER_ALERT_EMAIL,
+      blocked_id: String(typedId).slice(0, 200) || "(blank)",
+      attempts: attempts,
+      time: new Date().toLocaleString("en-IN")
+    });
+  } catch (e) { /* email failed to send — the on-screen block still happened regardless */ }
+}
+
+/* ---------------------------------------------------------
    SECTION 1 — Login (normal + emergency PIN) + lockout + alert
    --------------------------------------------------------- */
 
@@ -14,7 +50,8 @@ function sanitizeId(raw) {
   return String(raw).trim().toLowerCase().replace(/[^a-z0-9]/g, "_").slice(0, 140) || "unknown";
 }
 
-const loginForm = document.getElementById("loginForm");
+const loginIdInput = document.getElementById("adminId");
+const loginPassInput = document.getElementById("adminPass");
 const loginError = document.getElementById("loginError");
 const securityAlertEl = document.getElementById("securityAlert");
 
@@ -42,7 +79,7 @@ function playGeneratedSiren() {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = "sawtooth";
-    gain.gain.value = 0.12;
+    gain.gain.value = 0.24; // 2x the original 0.12
     osc.connect(gain).connect(ctx.destination);
     osc.start();
     let high = true;
@@ -66,8 +103,17 @@ async function playCustomSirenViaWebAudio(url) {
   source.buffer = audioBuffer;
   source.loop = true;
   const gain = ctx.createGain();
-  gain.gain.value = 0.7;
-  source.connect(gain).connect(ctx.destination);
+  gain.gain.value = 1.4; // 2x the original 0.7
+  // A limiter after the gain boost — without this, pushing gain above 1.0
+  // on a real recorded file usually just clips into ugly static instead of
+  // sounding louder. This keeps the boost sounding like a louder siren.
+  const limiter = ctx.createDynamicsCompressor();
+  limiter.threshold.value = -12;
+  limiter.knee.value = 6;
+  limiter.ratio.value = 12;
+  limiter.attack.value = 0.003;
+  limiter.release.value = 0.25;
+  source.connect(gain).connect(limiter).connect(ctx.destination);
   source.start();
   sirenBufferSource = source;
 }
@@ -99,7 +145,8 @@ function startVibration() {
 }
 
 function showSecurityAlert() {
-  loginForm.reset();
+  loginIdInput.value = "";
+  loginPassInput.value = "";
   loginSection.classList.add("hidden");
   securityAlertEl.classList.remove("hidden");
   if ("mediaSession" in navigator) {
@@ -109,11 +156,10 @@ function showSecurityAlert() {
   startVibration();
 }
 
-loginForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
+async function attemptLogin() {
   loginError.textContent = "";
-  const idVal = document.getElementById("adminId").value;
-  const passVal = document.getElementById("adminPass").value;
+  const idVal = loginIdInput.value;
+  const passVal = loginPassInput.value;
 
   // ---- Emergency backup login: a 10-digit code always gets you in,
   // even if your normal ID has been blocked. It quietly falls through
@@ -141,10 +187,12 @@ loginForm.addEventListener("submit", async (e) => {
 
   // Already permanently blocked — show the alert immediately, don't even check the password.
   if (blockSnap.exists && blockSnap.data().blocked) {
+    const repeatAttempts = (blockSnap.data().attempts || 0) + 1;
     blockRef.update({
       attempts: firebase.firestore.FieldValue.increment(1),
       lastAttempt: firebase.firestore.FieldValue.serverTimestamp()
     }).catch(() => {});
+    sendOwnerEmailAlert(idVal, repeatAttempts);
     showSecurityAlert();
     return;
   }
@@ -170,11 +218,19 @@ loginForm.addEventListener("submit", async (e) => {
     } catch (e) { /* rules issue — fail quietly, the normal error still shows below */ }
 
     if (willBlock) {
+      sendOwnerEmailAlert(idVal, newAttempts);
       showSecurityAlert();
     } else {
       loginError.textContent = "Wrong ID or password. One more wrong attempt will block this ID.";
     }
   }
+}
+
+document.getElementById("loginSubmitBtn").addEventListener("click", attemptLogin);
+[loginIdInput, loginPassInput].forEach((input) => {
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") attemptLogin();
+  });
 });
 
 /* ---------------------------------------------------------
@@ -260,6 +316,7 @@ function initDashboard() {
   initBanner();
   initEntryVideoTab();
   initBlockedList();
+  initPhoneAlerts();
   initSecuritySound();
   initSettings();
   initSocialLinks();
@@ -520,8 +577,18 @@ function initEntryVideoTab() {
 }
 
 /* ---- Blocked logins ---- */
+let knownBlockedIds = null; // null until the first snapshot arrives
+
 function initBlockedList() {
   db.collection("security_blocks").where("blocked", "==", true).onSnapshot((snap) => {
+    const currentIds = new Set(snap.docs.map((d) => d.id));
+    if (knownBlockedIds) {
+      snap.docs.forEach((d) => {
+        if (!knownBlockedIds.has(d.id)) triggerOwnerAlert(d.id, d.data());
+      });
+    }
+    knownBlockedIds = currentIds; // don't alert for IDs already blocked before this page loaded
+
     const wrap = document.getElementById("blockedList");
     if (snap.empty) { wrap.innerHTML = '<p class="empty-msg">No blocked IDs.</p>'; return; }
     wrap.innerHTML = snap.docs.map((d) => {
@@ -541,6 +608,59 @@ function initBlockedList() {
   }, () => {
     document.getElementById("blockedList").innerHTML = '<p class="empty-msg">Couldn\u2019t load the list — check your Firestore rules.</p>';
   });
+}
+
+/* ---- Live alert on this device (siren + red screen + notification) ----
+   Fires only while this admin panel tab is open somewhere (phone or
+   laptop) — there's no way for a website to wake up a fully-closed
+   browser or ring through a locked phone the way a call or alarm does.
+   Keep this tab open on your phone (even in the background) for it to
+   go off in real time; the email alert above is the part that still
+   reaches you if the tab isn't open. */
+function triggerOwnerAlert(id, data) {
+  document.getElementById("ownerAlertId").textContent = "ID: " + id;
+  document.getElementById("ownerAlertTime").textContent =
+    "Attempts: " + (data.attempts || 0) + " · " + new Date().toLocaleString("en-IN");
+  document.getElementById("ownerAlertOverlay").classList.remove("hidden");
+  playSiren();
+  startVibration();
+  if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+    try {
+      new Notification("🚨 MBW Security Alert", {
+        body: "Blocked login attempt — ID: " + id,
+        requireInteraction: true
+      });
+    } catch (e) {}
+  }
+}
+
+function initPhoneAlerts() {
+  const btn = document.getElementById("enablePhoneAlerts");
+  const status = document.getElementById("phoneAlertsStatus");
+  const dismissBtn = document.getElementById("ownerAlertDismiss");
+
+  function refreshStatus() {
+    if (typeof Notification === "undefined") {
+      status.textContent = "This browser doesn't support notifications — the siren and red screen will still work while this tab is open.";
+    } else if (Notification.permission === "granted") {
+      status.textContent = "✅ Live alerts are on for this device. Keep this tab open to receive them.";
+    } else {
+      status.textContent = "While this tab is open on a device, that device will flash red, play the siren, and show a notification the moment a new ID gets blocked.";
+    }
+  }
+
+  btn.addEventListener("click", async () => {
+    if (typeof Notification === "undefined") { refreshStatus(); return; }
+    await Notification.requestPermission();
+    refreshStatus();
+  });
+
+  dismissBtn.addEventListener("click", () => {
+    document.getElementById("ownerAlertOverlay").classList.add("hidden");
+    stopSiren();
+  });
+
+  refreshStatus();
 }
 
 /* ---- Security siren sound ---- */
