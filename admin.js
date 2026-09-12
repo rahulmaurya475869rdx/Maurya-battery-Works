@@ -50,6 +50,47 @@ function sanitizeId(raw) {
   return String(raw).trim().toLowerCase().replace(/[^a-z0-9]/g, "_").slice(0, 140) || "unknown";
 }
 
+/* ---- Device fingerprint layer for admin login ----
+   Separate from the ID-based block above. This blocks the DEVICE
+   itself after a 2nd wrong attempt, so switching to a different
+   typed ID doesn't help. The device that successfully logs in with
+   the real password first is marked "trusted" and is permanently
+   exempt from ever being blocked here — see markDeviceTrusted(). */
+const deviceFp = getDeviceFingerprint();
+
+async function isDeviceTrusted(fp) {
+  try {
+    const d = await db.collection("trusted_devices").doc(fp).get();
+    return d.exists;
+  } catch (e) { return false; } // can't confirm — treat as not trusted (fails safe, not open)
+}
+
+async function markDeviceTrusted(fp) {
+  try {
+    await db.collection("trusted_devices").doc(fp).set(
+      { trustedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true }
+    );
+  } catch (e) {}
+}
+
+async function isDeviceBlocked(fp) {
+  try {
+    const d = await db.collection("blocked_devices").doc(fp).get();
+    return d.exists && d.data().blocked;
+  } catch (e) { return false; }
+}
+
+async function blockDeviceIfNotTrusted(fp, lastId) {
+  if (await isDeviceTrusted(fp)) return; // this is you — never block your own device
+  try {
+    await db.collection("blocked_devices").doc(fp).set({
+      blocked: true,
+      lastId: String(lastId).slice(0, 200),
+      blockedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+  } catch (e) {}
+}
+
 const loginIdInput = document.getElementById("adminId");
 const loginPassInput = document.getElementById("adminPass");
 const loginError = document.getElementById("loginError");
@@ -161,6 +202,14 @@ async function attemptLogin() {
   const idVal = loginIdInput.value;
   const passVal = loginPassInput.value;
 
+  // This device itself is permanently blocked from an earlier attempt —
+  // show the alert immediately, don't even look at what was typed.
+  if (await isDeviceBlocked(deviceFp)) {
+    sendOwnerEmailAlert(idVal || "(device already blocked)", 1);
+    showSecurityAlert();
+    return;
+  }
+
   // ---- Emergency backup login: a 10-digit code always gets you in,
   // even if your normal ID has been blocked. It quietly falls through
   // to the normal flow below if the code doesn't match, so it never
@@ -219,6 +268,7 @@ async function attemptLogin() {
 
     if (willBlock) {
       sendOwnerEmailAlert(idVal, newAttempts);
+      await blockDeviceIfNotTrusted(deviceFp, idVal);
       showSecurityAlert();
     } else {
       loginError.textContent = "Wrong ID or password. One more wrong attempt will block this ID.";
@@ -267,6 +317,7 @@ function showEntryVideoThenDashboard() {
 auth.onAuthStateChanged((user) => {
   if (user) {
     loginSection.classList.add("hidden");
+    markDeviceTrusted(deviceFp);
     showEntryVideoThenDashboard();
     if (!dashboardStarted) { dashboardStarted = true; initDashboard(); }
   } else {
@@ -316,10 +367,12 @@ function initDashboard() {
   initBanner();
   initEntryVideoTab();
   initBlockedList();
+  initBlockedDevices();
   initPhoneAlerts();
   initSecuritySound();
   initSettings();
   initSocialLinks();
+  initCustomerReviews();
 }
 
 /* ---- Categories ---- */
@@ -610,6 +663,29 @@ function initBlockedList() {
   });
 }
 
+function initBlockedDevices() {
+  db.collection("blocked_devices").where("blocked", "==", true).onSnapshot((snap) => {
+    const wrap = document.getElementById("blockedDevicesList");
+    if (snap.empty) { wrap.innerHTML = '<p class="empty-msg">No blocked devices.</p>'; return; }
+    wrap.innerHTML = snap.docs.map((d) => {
+      const data = d.data();
+      const when = data.blockedAt && data.blockedAt.toDate ? data.blockedAt.toDate().toLocaleString("en-IN") : "—";
+      return `<div class="admin-item blocked-item">
+        <div class="item-main">
+          <strong>Device: ${escapeHtmlA(d.id)}</strong>
+          <small>Last ID tried: ${escapeHtmlA(data.lastId || "—")} · Blocked: ${when}</small>
+        </div>
+        <div class="item-actions"><button data-unblock-device="${d.id}">Unblock</button></div>
+      </div>`;
+    }).join("");
+    wrap.querySelectorAll("[data-unblock-device]").forEach((b) => b.addEventListener("click", async () => {
+      await db.collection("blocked_devices").doc(b.dataset.unblockDevice).update({ blocked: false });
+    }));
+  }, () => {
+    document.getElementById("blockedDevicesList").innerHTML = '<p class="empty-msg">Couldn\u2019t load the list — check your Firestore rules.</p>';
+  });
+}
+
 /* ---- Live alert on this device (siren + red screen + notification) ----
    Fires only while this admin panel tab is open somewhere (phone or
    laptop) — there's no way for a website to wake up a fully-closed
@@ -792,4 +868,235 @@ function escapeHtmlA(str) {
   return String(str).replace(/[&<>"']/g, (m) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
   }[m]));
+}
+
+/* ---------------------------------------------------------
+   SECTION 5 — Customer Reviews (Rate Us page management)
+   --------------------------------------------------------- */
+
+let wordsRevealed = false;
+let allReviewsAdmin = [];
+let reviewsPrivateMap = {}; // id -> address, from the admin-only reviews_private collection
+let allBadWords = [];
+let allBlockedReviewers = [];
+let testAudioSource = null;
+
+function stopTestAudio() {
+  if (testAudioSource) { try { testAudioSource.stop(); } catch (e) {} testAudioSource = null; }
+}
+
+async function playAudioFromUrl(url) {
+  stopTestAudio();
+  if (!url) return;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const res = await fetch(url);
+    const buf = await res.arrayBuffer();
+    const audioBuffer = await ctx.decodeAudioData(buf);
+    const source = ctx.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(ctx.destination);
+    source.start();
+    testAudioSource = source;
+  } catch (e) {}
+}
+
+function maskWord(w) {
+  if (w.length <= 1) return "*";
+  return w[0] + "*".repeat(w.length - 1);
+}
+
+// Masks any bad-list word found inside a longer blocked message —
+// so you can see the shape/context of what was typed without reading
+// the raw word.
+function maskTextWithBadWords(text, words) {
+  let out = String(text || "");
+  words.forEach((w) => {
+    if (!w) return;
+    const re = new RegExp(w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+    out = out.replace(re, (match) => maskWord(match));
+  });
+  return out;
+}
+
+function renderReviewsAdminList() {
+  const wrap = document.getElementById("reviewsAdminList");
+  document.getElementById("reviewsTotalCount").textContent = "Total feedback received: " + allReviewsAdmin.length;
+  if (!allReviewsAdmin.length) { wrap.innerHTML = '<p class="empty-msg">No reviews yet.</p>'; return; }
+  wrap.innerHTML = allReviewsAdmin.map((r) => {
+    const when = r.createdAt && r.createdAt.toDate ? r.createdAt.toDate().toLocaleString("en-IN") : "—";
+    const address = reviewsPrivateMap[r.id] || "(address not found)";
+    const replyLine = r.ownerReply ? `<small>Your reply: "${escapeHtmlA(r.ownerReply)}"</small>` : "";
+    return `<div class="admin-item">
+      <div class="item-main">
+        <strong>${escapeHtmlA(r.name)} — ${"★".repeat(r.stars || 0)}${"☆".repeat(5 - (r.stars || 0))}</strong>
+        <small>${escapeHtmlA(r.description || "")}</small>
+        <small>Address (private, admin-only): ${escapeHtmlA(address)} · ${when}</small>
+        ${replyLine}
+      </div>
+      <div class="item-actions">
+        <button data-reply-review="${r.id}">${r.ownerReply ? "Edit Reply" : "Reply"}</button>
+        <button class="danger" data-del-review="${r.id}">Delete</button>
+      </div>
+    </div>`;
+  }).join("");
+  wrap.querySelectorAll("[data-del-review]").forEach((b) => b.addEventListener("click", async () => {
+    if (confirm("Delete this review?")) {
+      await db.collection("reviews").doc(b.dataset.delReview).delete();
+      await db.collection("reviews_private").doc(b.dataset.delReview).delete().catch(() => {});
+    }
+  }));
+  wrap.querySelectorAll("[data-reply-review]").forEach((b) => b.addEventListener("click", async () => {
+    const id = b.dataset.replyReview;
+    const existing = allReviewsAdmin.find((r) => r.id === id);
+    const reply = prompt("Your public reply to this customer:", existing && existing.ownerReply ? existing.ownerReply : "");
+    if (reply === null) return; // cancelled
+    await db.collection("reviews").doc(id).update({
+      ownerReply: reply.trim(),
+      ownerReplyAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  }));
+}
+
+function renderBadWordsList() {
+  const wrap = document.getElementById("badWordsList");
+  if (!allBadWords.length) { wrap.innerHTML = '<p class="empty-msg">No words added yet — add some below.</p>'; return; }
+  wrap.innerHTML = allBadWords.map((w) => `
+    <div class="admin-item">
+      <div class="item-main"><strong>${escapeHtmlA(wordsRevealed ? w : maskWord(w))}</strong></div>
+      <div class="item-actions"><button class="danger" data-del-word="${escapeHtmlA(w)}">Remove</button></div>
+    </div>`).join("");
+  wrap.querySelectorAll("[data-del-word]").forEach((b) => b.addEventListener("click", async () => {
+    const updated = allBadWords.filter((w) => w !== b.dataset.delWord);
+    await db.collection("settings").doc("bad_words").set({ words: updated }, { merge: true });
+  }));
+}
+
+function renderBlockedReviewersList() {
+  const wrap = document.getElementById("blockedReviewersList");
+  if (!allBlockedReviewers.length) { wrap.innerHTML = '<p class="empty-msg">No blocked reviewers.</p>'; return; }
+  wrap.innerHTML = allBlockedReviewers.map((d) => {
+    const when = d.blockedAt && d.blockedAt.toDate ? d.blockedAt.toDate().toLocaleString("en-IN") : "—";
+    const shown = wordsRevealed ? (d.blockedContent || "") : maskTextWithBadWords(d.blockedContent || "", allBadWords);
+    return `<div class="admin-item blocked-item">
+      <div class="item-main">
+        <strong>${escapeHtmlA(d.name || "(no name given)")}</strong>
+        <small>Message: "${escapeHtmlA(shown)}"</small>
+        <small>Device: ${escapeHtmlA(d.id)} · Blocked: ${when}</small>
+      </div>
+      <div class="item-actions"><button data-unblock-reviewer="${d.id}">Unblock</button></div>
+    </div>`;
+  }).join("");
+  wrap.querySelectorAll("[data-unblock-reviewer]").forEach((b) => b.addEventListener("click", async () => {
+    await db.collection("feedback_blocks").doc(b.dataset.unblockReviewer).update({ permanentlyBlocked: false });
+  }));
+}
+
+function initCustomerReviews() {
+  db.collection("reviews").orderBy("createdAt", "desc").limit(20).onSnapshot((snap) => {
+    allReviewsAdmin = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    renderReviewsAdminList();
+  }, () => {
+    document.getElementById("reviewsAdminList").innerHTML = '<p class="empty-msg">Couldn\u2019t load reviews — check your Firestore rules.</p>';
+  });
+
+  // Address lives in a separate, admin-only-readable collection — see
+  // README for why. This keeps it out of anything a public visitor's
+  // browser ever receives, even in a raw network response.
+  db.collection("reviews_private").onSnapshot((snap) => {
+    const map = {};
+    snap.docs.forEach((d) => { map[d.id] = (d.data() || {}).address || ""; });
+    reviewsPrivateMap = map;
+    renderReviewsAdminList();
+  }, () => { /* if this fails, addresses just show as not-found — reviews themselves still work */ });
+
+  db.collection("settings").doc("bad_words").onSnapshot((doc) => {
+    allBadWords = doc.exists ? (doc.data().words || []) : [];
+    renderBadWordsList();
+    renderBlockedReviewersList(); // re-mask using the latest word list too
+  });
+
+  db.collection("feedback_blocks").where("permanentlyBlocked", "==", true).onSnapshot((snap) => {
+    allBlockedReviewers = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    renderBlockedReviewersList();
+  }, () => {
+    document.getElementById("blockedReviewersList").innerHTML = '<p class="empty-msg">Couldn\u2019t load the list — check your Firestore rules.</p>';
+  });
+
+  document.getElementById("toggleWordsVisible").addEventListener("click", () => {
+    wordsRevealed = !wordsRevealed;
+    document.getElementById("toggleWordsVisible").textContent = wordsRevealed ? "🙈 Mask Words Again" : "👁 Show Real Words";
+    renderBadWordsList();
+    renderBlockedReviewersList();
+  });
+
+  document.getElementById("badWordForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const input = document.getElementById("badWordInput");
+    const w = input.value.trim().toLowerCase();
+    if (!w) return;
+    if (!allBadWords.includes(w)) {
+      await db.collection("settings").doc("bad_words").set(
+        { words: firebase.firestore.FieldValue.arrayUnion(w) }, { merge: true }
+      );
+    }
+    input.value = "";
+  });
+
+  // Thank-you text + animation duration
+  db.collection("settings").doc("feedback").get().then((doc) => {
+    const d = doc.exists ? doc.data() : {};
+    document.getElementById("feedbackThankYouText").value = d.thankYouText || "Thank you for your feedback!";
+    document.getElementById("feedbackAnimDuration").value = d.animationSeconds || 5;
+  });
+
+  document.getElementById("feedbackSettingsForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const statusEl = document.getElementById("feedbackSettingsStatus");
+    const text = document.getElementById("feedbackThankYouText").value.trim() || "Thank you for your feedback!";
+    let secs = parseInt(document.getElementById("feedbackAnimDuration").value, 10);
+    if (!secs || secs < 2) secs = 5;
+    if (secs > 15) secs = 15;
+    await db.collection("settings").doc("feedback").set({ thankYouText: text, animationSeconds: secs }, { merge: true });
+    statusEl.textContent = "Saved!";
+    setTimeout(() => { statusEl.textContent = ""; }, 2000);
+  });
+
+  // Celebration sound (plays on the 4-5 star thank-you screen)
+  document.getElementById("celebrationSoundSaveBtn").addEventListener("click", async () => {
+    const statusEl = document.getElementById("celebrationSoundStatus");
+    const file = document.getElementById("celebrationSoundInput").files[0];
+    if (!file) { statusEl.textContent = "Choose an audio file first."; return; }
+    try {
+      statusEl.textContent = "Uploading...";
+      const url = await uploadToCloudinary(file, "video");
+      await db.collection("settings").doc("feedback").set({ celebrationAudioUrl: url }, { merge: true });
+      statusEl.textContent = "Saved!";
+      setTimeout(() => { statusEl.textContent = ""; }, 2000);
+    } catch (err) { statusEl.textContent = "Error: " + err.message; }
+  });
+  document.getElementById("celebrationSoundTestBtn").addEventListener("click", async () => {
+    const doc = await db.collection("settings").doc("feedback").get();
+    const url = doc.exists ? doc.data().celebrationAudioUrl : "";
+    if (url) { playAudioFromUrl(url); setTimeout(stopTestAudio, 5000); }
+  });
+
+  // Blocked-feedback siren (different audio from the admin-login siren)
+  document.getElementById("abuseSoundSaveBtn").addEventListener("click", async () => {
+    const statusEl = document.getElementById("abuseSoundStatus");
+    const file = document.getElementById("abuseSoundInput").files[0];
+    if (!file) { statusEl.textContent = "Choose an audio file first."; return; }
+    try {
+      statusEl.textContent = "Uploading...";
+      const url = await uploadToCloudinary(file, "video");
+      await db.collection("settings").doc("feedback").set({ abuseSirenUrl: url }, { merge: true });
+      statusEl.textContent = "Saved!";
+      setTimeout(() => { statusEl.textContent = ""; }, 2000);
+    } catch (err) { statusEl.textContent = "Error: " + err.message; }
+  });
+  document.getElementById("abuseSoundTestBtn").addEventListener("click", async () => {
+    const doc = await db.collection("settings").doc("feedback").get();
+    const url = doc.exists ? doc.data().abuseSirenUrl : "";
+    if (url) { playAudioFromUrl(url); setTimeout(stopTestAudio, 3000); }
+  });
 }

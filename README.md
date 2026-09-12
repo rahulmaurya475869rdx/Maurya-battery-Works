@@ -8,13 +8,19 @@ below on how to make it live. Follow each step in order — don't skip any.
 ```
 index.html            Main page customers see
 admin.html             Your admin panel (opens by typing "MBW LOGIN" in the search bar)
-css/style.css          All styling for the whole site (red shine, italic text, everything)
-js/firebase-config.js  Where you put your Firebase + Cloudinary details
-js/app.js              Logic for the customer-facing page
-js/admin.js            Logic for the admin panel (login, security alert, product management)
+rateus.html            Public "Rate Us" review page (linked from the homepage)
+style.css              All styling for the whole site (red shine, italic text, everything)
+firebase-config.js     Where you put your Firebase + Cloudinary details
+app.js                 Logic for the customer-facing page
+admin.js               Logic for the admin panel (login, security alert, product management, reviews)
+rateus.js              Logic for the Rate Us page (star picker, review list, abuse/spam checks)
+fingerprint.js         Shared device-fingerprint helper (used by admin.js and rateus.js)
 firestore.rules        Firebase database security rules (you paste this in)
 README.md              This guide
 ```
+
+All of these files sit directly in the main folder on GitHub — not inside any
+`css/` or `js/` subfolder, so upload/replace them at the top level.
 
 No zip file — every file is direct, as you asked for.
 
@@ -283,6 +289,145 @@ account into random login boxes without meaning to. Holding onto that
 password, which is a real liability for you and unfair to them. Knowing
 *who* tried is enough to see the pattern and act on it; the password
 itself was never needed for that.
+
+---
+
+## Device fingerprint blocking (admin login)
+
+On top of the existing ID-based block, the login page now also
+fingerprints the device itself (a mix of canvas rendering and a few
+browser/screen signals — see `fingerprint.js`). On a 2nd wrong attempt,
+that **device** gets blocked too — so switching to a different (still
+wrong) ID from the same phone/browser doesn't get around it.
+
+**You will never lock yourself out this way.** The moment you log in
+successfully — real password or emergency PIN — that device is marked
+"trusted" in Firestore and becomes permanently exempt from this block,
+even if you fat-finger your own password twice on some other day.
+
+If you ever do see your own device in the **Blocked Devices** list
+(Blocked Logins tab), tap **Unblock** — or unblock it from any other
+device that's already trusted.
+
+**Worth knowing honestly:** this isn't a fingerprint the way a real one
+is — a private/incognito window, clearing site data, or a different
+browser produces a new one. It's a solid extra speed bump, not an
+unbeatable lock.
+
+---
+
+## Rate Us page (customer reviews)
+
+A new public page, `rateus.html`, linked from a "⭐ Rate Us" button on
+your homepage. Customers pick 1–5 stars — their honest choice, no forced
+minimum — write an optional description, and give their name + address
+(address is mandatory but never shown publicly; see below).
+
+### What happens on submit
+
+1. **Already permanently blocked** (same device, any name) → a plain
+   message: *"Your feedback submission has been permanently blocked."*
+   No siren.
+2. **Already submitted 3 times today** (same device, any name — matched
+   by fingerprint, not by name) → *"You have already submitted your
+   feedback today."* No siren, nothing scary.
+3. **Contains a word from your Bad Words list** → full red screen,
+   siren, and vibration — using a sound **separate from the admin-login
+   siren** (upload it under Feedback Settings) — and that device is
+   **permanently blocked from ever submitting again**, under any name.
+   Nothing is saved.
+4. **Otherwise** → saved instantly, shown at the top of the public list.
+   4–5 star reviews get the full animated "Thank You" screen (falling
+   stars/flowers, your custom text, your custom sound, for however many
+   seconds you set) — 1–3 star reviews get a simple, non-animated
+   thank-you instead, since the celebration is specifically for the
+   enthusiastic ones.
+
+### ⚠️ You must add words to the Bad Words list yourself
+
+The list starts **empty**. Until you add words in the Customer Reviews
+tab, the abuse filter does nothing — add them before this page goes
+live. Matching is whole-word and case-insensitive ("dumb" won't match
+inside "dumbbell"). Words show **masked** in your own admin panel by
+default — it's your shop's panel, no reason you should have to read a
+list of slurs — with a "Show Real Words" toggle for whenever you need to
+check spelling or add a variant.
+
+### How the address stays private — properly, not just hidden in the UI
+
+The address is saved in a **separate Firestore collection**
+(`reviews_private`) that only you, logged into the admin panel, can
+read — not merely hidden by the page's design. This matters: if the
+address lived in the same document as the public review, a
+technically-minded visitor could still see it by inspecting the page's
+network traffic directly, even though the review card itself never
+displays it. A separate, admin-only-readable collection closes that gap
+for real, not just visually.
+
+### Why "bad product" isn't filtered, and what's there instead
+
+Filtering out product/service complaints would also silence genuinely
+unhappy customers — full reasoning is earlier in this conversation.
+Instead, every review can be **deleted** from the Customer Reviews tab,
+and you can **reply publicly** to any review (the "Reply" button) —
+between the two, you have full control without an automatic filter
+making that call for you.
+
+### Firestore rules — add these
+
+**Firebase Console → Firestore Database → Rules.** Add the blocks below
+*inside* your existing `match /databases/{database}/documents { ... }`,
+alongside what's already there — don't delete your existing rules:
+
+```
+match /trusted_devices/{deviceId} {
+  allow get: if true;
+  allow write: if request.auth != null;
+}
+
+match /blocked_devices/{deviceId} {
+  allow get: if true;
+  allow create: if true;
+  allow list, update, delete: if request.auth != null;
+}
+
+match /feedback_blocks/{deviceId} {
+  allow get: if true;
+  allow create, update: if true;
+  allow list, delete: if request.auth != null;
+}
+
+match /review_daily_limits/{limitId} {
+  allow get, create, update: if true;
+  allow list, delete: if request.auth != null;
+}
+
+match /reviews/{reviewId} {
+  allow read: if true;
+  allow create: if true;
+  allow update, delete: if request.auth != null;
+}
+
+match /reviews_private/{reviewId} {
+  allow get, list: if request.auth != null;
+  allow create: if true;
+  allow update, delete: if request.auth != null;
+}
+```
+
+Your existing `settings/{docId}`-style rule should already cover the two
+new settings documents this feature uses (`bad_words` and `feedback`),
+as long as it isn't written to only allow specific document names. If
+saving bad words or feedback settings gives a permission error, that's
+the first thing to check.
+
+**Why `get` and `list` are split** — the one genuinely tricky part here:
+`get` fetches one specific document by its exact ID (how a visitor's own
+browser checks "is *my* fingerprint blocked?"); `list` runs a query
+across many documents (how your admin panel builds the "Blocked
+Devices" / "Blocked Reviewers" lists). Splitting them means a visitor
+can check their own status without being able to browse everyone
+else's.
 
 ---
 

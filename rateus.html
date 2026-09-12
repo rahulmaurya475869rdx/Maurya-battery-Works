@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rate Us — Maurya Battery Works</title>
+<meta name="description" content="Share your experience with Maurya Battery Works.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,700;1,900&family=Poppins:ital,wght@0,400;0,600;1,400;1,500;1,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="shine-bar shine-bar-top"></div>
+
+  <header class="shop-banner">
+    <div class="banner-glow"></div>
+    <h1>Rate Your Experience</h1>
+    <p class="tagline">Maurya Battery Works — tell other customers what you think</p>
+  </header>
+
+  <main>
+    <section class="rateus-section">
+      <a href="index.html" class="rateus-back">← Back to Shop</a>
+      <p class="hint-text rateus-total" id="rateusTotalCount">Total feedback received: 0</p>
+
+      <!-- Blocked / limited message (shown instead of the form) -->
+      <div class="rateus-notice hidden" id="rateusNotice"></div>
+
+      <form id="rateusForm" class="admin-form rateus-form hidden">
+        <label>Your Rating</label>
+        <div class="star-picker" id="starPicker">
+          <span data-star="1">★</span><span data-star="2">★</span><span data-star="3">★</span><span data-star="4">★</span><span data-star="5">★</span>
+        </div>
+        <label>Your Name</label>
+        <input type="text" id="rateusName" placeholder="Enter your name" required>
+        <label>Your Address</label>
+        <textarea id="rateusAddress" rows="2" placeholder="Enter your address (kept private, never shown publicly)" required></textarea>
+        <label>Tell us about your experience (optional)</label>
+        <textarea id="rateusDescription" rows="3" placeholder="What did you like? Anything we can improve?"></textarea>
+        <button type="submit">Submit Feedback</button>
+        <p class="upload-status" id="rateusFormStatus"></p>
+      </form>
+    </section>
+
+    <section class="rateus-list-section">
+      <h2 class="section-title">What Customers Say</h2>
+      <div id="rateusList"></div>
+      <div class="form-btn-row" id="rateusMoreWrap">
+        <button type="button" id="rateusMoreBtn" class="secondary-btn hidden">See more customer visits</button>
+      </div>
+    </section>
+  </main>
+
+  <div class="shine-bar shine-bar-bottom"></div>
+
+  <!-- Abuse-detected alert (red, siren, vibration — separate audio from admin login) -->
+  <div class="security-alert hidden" id="rateusAbuseAlert">
+    <div class="skull">💀</div>
+    <h2 class="alert-title">⚠ SECURITY ALERT ⚠</h2>
+    <p class="alert-sub">THIS FEEDBACK COULD NOT BE POSTED</p>
+    <p class="alert-sub2">Abusive content is not allowed on this site.</p>
+  </div>
+
+  <!-- Celebration screen for 4-5 star reviews -->
+  <div class="rateus-celebrate hidden" id="rateusCelebrate">
+    <div class="rateus-fall-wrap" id="rateusFallWrap"></div>
+    <div class="rateus-celebrate-card">
+      <p id="rateusThankYouText">Thank you for your feedback!</p>
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="fingerprint.js"></script>
+  <script src="rateus.js"></script>
+</body>
+</html>
